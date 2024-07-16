@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebListy</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>WebListy - A Mini Search Engine</h1>
+    <button onclick="fetchList()">Get List</button>
+    
+    <table id="list-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Title</th>
+                <th>Snippet</th>
+                <th>Link</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    
+    <form id="search-form" method="POST" action="/search">
+        <input type="text" name="query" placeholder="Search Query">
+        <select name="platform">
+            <option value="">Select Platform</option>
+            <option value="WordPress">WordPress</option>
+            <option value="Shopify">Shopify</option>
+            <option value="Joomla">Joomla</option>
+            <option value="OpenCart">OpenCart</option>
+            <option value="Laravel">Laravel</option>
+            <option value="Django">Django</option>
+            <option value="Spring">Spring</option>
+            <option value="Flask">Flask</option>
+        </select>
+        <input type="date" name="start_date">
+        <input type="date" name="end_date">
+        <input type="text" name="code_snippet" placeholder="Search Code">
+        <button type="submit">Search</button>
+    </form>
+    
+    <div id="search-results"></div>
+
+    <script>
+        function fetchList() {
+            fetch('/api/get_list')
+                .then(response => response.json())
+                .then(data => {
+                    const table = document.getElementById('list-table');
+                    const tbody = table.querySelector('tbody');
+                    tbody.innerHTML = '';  // Clear previous results
+
+                    data.forEach((item, index) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${item.title}</td>
+                            <td>${item.snippet}</td>
+                            <td><a href="${item.link}" target="_blank">${item.link}</a></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    table.style.display = 'table';  // Show the table
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results - WebListy</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Search Results for "{{ query }}"</h1>
+    <div id="results">
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Title</th>
+                    <th>Snippet</th>
+                    <th>Link</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    <td>{{ result.rank }}</td>
+                    <td>{{ result.title }}</td>
+                    <td>{{ result.snippet }}</td>
+                    <td><a href="{{ result.link }}" target="_blank">{{ result.link }}</a></td>
+                    <td>
+                        <button onclick="markRelevant('{{ query }}', '{{ result.link }}')">Mark Relevant</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <a href="/">Back to Search</a>
+
+    <script>
+        function markRelevant(query, link) {
+            fetch('/relevant', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: query, link: link })
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('Marked as relevant!');
+                  }
+              });
+        }
+    </script>
+</body>
+</html>
