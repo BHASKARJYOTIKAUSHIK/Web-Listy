@@ -34,6 +34,15 @@
             </tbody>
         </table>
     </div>
+    <form id="load-more-form" method="POST" action="/search">
+        <input type="hidden" name="query" value="{{ query }}">
+        <input type="hidden" name="platform" value="{{ platform }}">
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        <input type="hidden" name="code_snippet" value="{{ code_snippet }}">
+        <input type="hidden" name="reset" value="0">
+        <button type="submit">Load More</button>
+    </form>
     <a href="/">Back to Search</a>
 
     <script>
@@ -41,15 +50,16 @@
             fetch('/relevant', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ query: query, link: link })
-            }).then(response => response.json())
-              .then(data => {
-                  if (data.success) {
-                      alert('Marked as relevant!');
-                  }
-              });
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Marked as relevant!');
+                }
+            });
         }
     </script>
 </body>

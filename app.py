@@ -1,51 +1,41 @@
-from flask import Flask, request, render_template, jsonify, g
+from flask import Flask, request, render_template, jsonify, session, redirect, url_for, flash
 import requests
-from datetime import datetime
+import asyncio
+import aiohttp
 import settings
 from filter import Filter
-from storage import DBStorage, get_db, close_db
-from bs4 import BeautifulSoup
+from storage import DBStorage, close_db
+from datetime import datetime
 import pandas as pd
-import concurrent.futures
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key'  # Needed for session management
 
 @app.teardown_appcontext
 def teardown_db(exception):
     close_db(exception)
 
+async def fetch(session, url):
+    try:
+        async with session.get(url) as response:
+            return await response.text()
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return ""
+
+async def fetch_html_content_parallel(urls):
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch(session, url) for url in urls]
+        return await asyncio.gather(*tasks)
+
 def fetch_results(query, start_index=1):
-    url = settings.SEARCH_URL.format(key=settings.SEARCH_KEY, cx=settings.SEARCH_ID, query=query, start=start_index)
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raises HTTPError for bad responses
-        results = response.json().get('items', [])
-        return results
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching results: {e}")
+    if not query:
         return []
-
-def fetch_html_content(url):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.text
-    except requests.RequestException as e:
-        print(f"Error fetching HTML content from {url}: {e}")
-    return ""
-
-def fetch_html_content_parallel(links):
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_url = {executor.submit(fetch_html_content, url): url for url in links}
-        html_contents = []
-        for future in concurrent.futures.as_completed(future_to_url):
-            url = future_to_url[future]
-            try:
-                html_contents.append((url, future.result()))
-            except Exception as e:
-                print(f"Error processing future for {url}: {e}")
-                html_contents.append((url, ""))
-    return html_contents
+    
+    url = settings.SEARCH_URL.format(key=settings.SEARCH_KEY, cx=settings.SEARCH_ID, query=query, start=start_index)
+    response = requests.get(url)
+    response.raise_for_status()  # Raises HTTPError for bad responses
+    return response.json().get('items', [])
 
 @app.route('/')
 def index():
@@ -53,12 +43,22 @@ def index():
 
 @app.route('/search', methods=['POST'])
 def search():
-    query = request.form['query']
+    query = request.form['query'].strip()
     platform = request.form.get('platform')
     start_date = request.form.get('start_date')
     end_date = request.form.get('end_date')
     code_snippet = request.form.get('code_snippet')
-    
+    reset = request.form.get('reset')
+
+    if not query:
+        flash("Query cannot be empty.")
+        return redirect(url_for('index'))
+
+    if reset == '1':
+        session['page'] = 1
+    else:
+        session['page'] = session.get('page', 1) + 1
+
     full_query = query
     if platform:
         full_query += f" {platform}"
@@ -66,10 +66,11 @@ def search():
         full_query += f" {code_snippet}"
     if start_date and end_date:
         full_query += f" daterange:{start_date.replace('-', '')}-{end_date.replace('-', '')}"
-    
+
+    batch_size = 100
     results = []
-    for start_index in range(1, settings.RESULT_COUNT + 1, 10):
-        batch_results = fetch_results(full_query, start_index)
+    for i in range(0, settings.RESULT_COUNT, batch_size):
+        batch_results = fetch_results(full_query, start_index=i + 1 + (session['page'] - 1) * settings.RESULT_COUNT)
         results.extend(batch_results)
     
     if not results:
@@ -77,26 +78,22 @@ def search():
 
     results = results[:settings.RESULT_COUNT]
     links = [result['link'] for result in results]
-    html_contents = fetch_html_content_parallel(links)
+    html_contents = asyncio.run(fetch_html_content_parallel(links))
 
     ranked_results = []
-    for i, (link, html_content) in enumerate(html_contents):
-        for result in results:
-            if result['link'] == link:
-                ranked_results.append({
-                    'query': query,
-                    'rank': i + 1,
-                    'title': result.get('title', ''),
-                    'snippet': result.get('snippet', ''),
-                    'link': result.get('link', ''),
-                    'html': html_content
-                })
+    for i, html_content in enumerate(html_contents):
+        ranked_results.append({
+            'query': query,
+            'rank': i + 1,
+            'title': results[i].get('title', ''),
+            'snippet': results[i].get('snippet', ''),
+            'link': results[i].get('link', ''),
+            'html': html_content
+        })
 
     results_df = pd.DataFrame(ranked_results)
     filter_instance = Filter(results_df)
     filtered_results = filter_instance.filter()
-
-    print(filtered_results)  # Debugging: print the filtered results
 
     storage = DBStorage()
     for _, row in filtered_results.iterrows():
@@ -104,7 +101,7 @@ def search():
         row_dict['created'] = datetime.now().isoformat()
         storage.insert_row(row_dict)
 
-    return render_template('result.html', query=query, results=filtered_results.to_dict(orient='records'))
+    return render_template('result.html', query=query, results=filtered_results.to_dict(orient='records'), platform=platform, start_date=start_date, end_date=end_date, code_snippet=code_snippet)
 
 @app.route('/api/get_list')
 def get_list():

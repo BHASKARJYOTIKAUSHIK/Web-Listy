@@ -8,6 +8,17 @@
 </head>
 <body>
     <h1>WebListy - A Mini Search Engine</h1>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul class="flashes">
+          {% for message in messages %}
+            <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+    
     <button onclick="fetchList()">Get List</button>
     
     <table id="list-table" style="display:none;">
@@ -38,9 +49,10 @@
         <input type="date" name="start_date">
         <input type="date" name="end_date">
         <input type="text" name="code_snippet" placeholder="Search Code">
+        <input type="hidden" name="reset" value="1">
         <button type="submit">Search</button>
     </form>
-    
+
     <div id="search-results"></div>
 
     <script>
