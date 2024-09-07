@@ -46,4 +46,4 @@ You'll need to download a list of ad and tracker URLs from [here](https://raw.gi
 
 * `pip install -r requirements.txt`
 * `flask --debug run --port 5001`
--Open your web browser and go to http://127.0.0.1:5001.
+- Open your web browser and go to http://127.0.0.1:5001.
